@@ -1,0 +1,146 @@
+# Vacancy formation energy using topology files 
+log 		log_5577.lammps
+
+units		metal
+dimension       3
+boundary	p p p
+atom_style      atomic
+
+read_data       pristine_graphene.atoms
+lattice         sc 1.0
+
+# Define minimization parameters
+variable 	etol equal 1.0e-8
+variable 	ftol equal 1.0e-15
+variable 	maxiter equal 10000
+variable 	maxeval equal 10000
+variable 	dmax equal 1.0e-2
+
+# ----- SETUP -----
+pair_style	airebo 3.0
+pair_coeff 	* *  CH.airebo.mod C
+neighbor 	1.0 nsq
+neigh_modify 	once no every 1 delay 0 check yes
+
+compute		bbreak all coord/atom 2.0
+compute 	eng all pe/atom 
+compute 	eatoms all reduce sum c_eng
+reset_timestep	0
+
+# ----- THERMAL -----
+thermo          100
+thermo_style 	custom step atoms temp pe ke etotal press pxx pyy pzz pxy pxz pyz lx ly lz c_eatoms
+thermo_modify   lost warn norm no flush yes
+
+# ----- MINIMIZATION -----
+fix		brlx all box/relax iso 0.0
+min_style	cg
+min_modify	dmax ${dmax} line quadratic
+minimize 	${etol} ${ftol} ${maxiter} ${maxeval}
+unfix		brlx
+
+# ----- RELAXATION -----
+timestep        0.001
+velocity 	all create 300 1232 mom yes rot yes dist gaussian
+fix             tmp all npt temp 300 300 0.1 iso 0.0 0.0 1.0
+run             5000
+unfix		tmp
+fix             tmp all npt temp 300 10 0.5 iso 0.0 0.0 1.0
+run             10000
+unfix		tmp
+fix             tmp all npt temp 10 10 0.1 iso 0.0 0.0 1.0
+run             5000
+unfix		tmp
+fix             tmp all npt temp 10 1 0.1 iso 0.0 0.0 1.0
+run             10000
+unfix		tmp
+fix             tmp all npt temp 1 1 0.1 iso 0.0 0.0 1.0
+run             5000
+unfix		tmp
+
+# ----- MINIMIZATION -----
+min_style	cg
+min_modify	dmax ${dmax} line quadratic
+minimize 	${etol} ${ftol} ${maxiter} ${maxeval}
+
+variable 	N equal count(all)
+variable 	Natoms equal $N
+variable 	E equal "c_eatoms"
+variable 	Ei equal $E
+
+##############################################################
+# ---- Vacancy (restarting simulation with topology file) ----
+##############################################################
+
+clear
+
+units		metal
+dimension       3
+boundary	p p p
+atom_style      atomic
+
+read_data       5577.atoms
+lattice         sc 1.0
+
+# ----- SETUP -----
+pair_style	airebo 3.0
+pair_coeff 	* *  CH.airebo.mod C
+neighbor 	1.0 nsq
+neigh_modify 	once no every 1 delay 0 check yes
+
+compute		bbreak all coord/atom 2.0
+compute 	eng all pe/atom 
+compute 	eatoms all reduce sum c_eng
+reset_timestep	0
+
+# ----- THERMAL -----
+thermo          100
+thermo_style 	custom step atoms temp pe ke etotal press pxx pyy pzz pxy pxz pyz lx ly lz c_eatoms
+thermo_modify   lost warn norm no flush yes
+
+# ----- MINIMIZATION -----
+#dump            rlx all cfg 100 Out/5577.*.cfg mass type xs ys zs c_eng c_bbreak
+#dump_modify	rlx element C
+fix		brlx all box/relax iso 0.0
+min_style	cg
+min_modify	dmax ${dmax} line quadratic
+minimize 	${etol} ${ftol} ${maxiter} ${maxeval}
+unfix		brlx
+
+# ----- RELAXATION -----
+timestep        0.001
+velocity 	all create 300 1232 mom yes rot yes dist gaussian
+fix             tmp all npt temp 300 300 0.1 iso 0.0 0.0 1.0
+run             5000
+unfix		tmp
+fix             tmp all npt temp 300 10 0.5 iso 0.0 0.0 1.0
+run             10000
+unfix		tmp
+fix             tmp all npt temp 10 10 0.1 iso 0.0 0.0 1.0
+run             5000
+unfix		tmp
+fix             tmp all npt temp 10 1 0.1 iso 0.0 0.0 1.0
+run             10000
+unfix		tmp
+fix             tmp all npt temp 1 1 0.1 iso 0.0 0.0 1.0
+run             5000
+unfix		tmp
+
+# ----- MINIMIZATION -----
+min_style	cg
+min_modify	dmax ${dmax} line quadratic
+minimize 	${etol} ${ftol} ${maxiter} ${maxeval}
+
+# --------- VARIABLES & FINAL CALCULATION --------- 
+variable 	N equal count(all)
+variable 	Natoms2 equal $N
+variable 	E equal "c_eatoms"
+variable 	Ef equal $E
+
+variable	Ev equal (${Ef}-((${Natoms2})/${Natoms})*${Ei})
+
+print 		"The initial total energy is ${Ei}"
+print 		"The final total energy is ${Ef}"
+print 		"The total number of atoms is ${Natoms}"
+print 		"The defect number of atoms is ${Natoms2}"
+print		"The defect formation energy is ${Ev}"
