@@ -1,0 +1,91 @@
+# Simulation to calculate the 100/010/001 surface energy
+
+# ------------------------ INITIALIZATION ----------------------
+units 		metal 
+dimension 	3 
+boundary 	p p p 
+atom_style 	atomic 
+
+# ----------------------- ATOM DEFINITION ---------------------- 
+lattice 	fcc 4.05
+region		box block 0 10 0 10 0 10 units lattice
+create_box	1 box
+
+lattice		fcc 4.05 orient x 1 0 0 orient y 0 1 0 orient z 0 0 1  
+create_atoms 	1 box
+replicate 	1 1 1
+
+# ----------------------- POTENTIAL -----------------------
+pair_style 	eam/alloy 
+pair_coeff 	* * Al99.eam.alloy Al
+neighbor 	2.0 bin 
+neigh_modify 	delay 10 check yes
+
+# ------------------ SETTINGS & MINIMIZATION ------------------
+compute 	eng all pe/atom 
+compute 	eatoms all reduce sum c_eng
+
+reset_timestep 	0
+thermo 		10 
+thermo_style 	custom step atoms pe ke etotal lx ly lz press pxx pyy pzz c_eatoms
+
+min_style 	cg 
+minimize 	1e-25 1e-25 5000 10000
+
+variable 	E equal "c_eatoms"
+variable 	Ei equal $E
+
+##############################################################
+# ---- Creating a surface by adding vacuum ----
+##############################################################
+
+# ------------------------ INITIALIZATION ----------------------
+clear
+units 		metal 
+dimension 	3 
+boundary 	p s p 
+atom_style 	atomic 
+
+# ----------------------- ATOM DEFINITION ---------------------- 
+lattice 	fcc 4.05
+region		box block 0 10 0 11 0 10 units lattice
+create_box	1 box
+
+lattice		fcc 4.05 orient x 1 0 0 orient y 0 1 0 orient z 0 0 1  
+create_atoms 	1 box
+replicate 	1 1 1
+
+# ----------------------- CREATING VACUUM ---------------------- 
+region		1 block INF INF 10 11 INF INF units lattice
+group		del region 1
+delete_atoms	group del
+
+# ----------------------- POTENTIAL -----------------------
+pair_style 	eam/alloy 
+pair_coeff 	* * Al99.eam.alloy Al
+neighbor 	2.0 bin 
+neigh_modify 	delay 10 check yes
+
+# ------------------ SETTINGS & MINIMIZATION ------------------
+compute 	eng all pe/atom 
+compute 	eatoms all reduce sum c_eng
+
+reset_timestep 	0
+thermo 		10 
+thermo_style 	custom step atoms pe ke etotal lx ly lz press pxx pyy pzz c_eatoms
+
+min_style 	cg 
+minimize 	1e-25 1e-25 5000 10000 
+
+variable 	E equal "c_eatoms"
+variable 	Ef equal $E
+
+# ------------------ CALCULATIONS ------------------
+variable	Ediff equal ${Ef}-${Ei}
+variable	Area equal lx*lz
+variable	ev2mJ equal 1.60217657e-16
+variable	A2m equal 1e-10
+
+variable	Esurf equal (${Ediff}*${ev2mJ})/(2*${Area}*${A2m}*${A2m})
+
+print		"The surface energy is ${Esurf} mJ/m^2"
